@@ -370,7 +370,7 @@
                             "api_key": "API key"
                         },
                         "data_description": {
-                            "api_key": "Your Mistral API key from https://console.mistral.ai/."
+                            "api_key": "Your Mistral API key from the Mistral console."
                         }
                     },
                     "model_section": {
