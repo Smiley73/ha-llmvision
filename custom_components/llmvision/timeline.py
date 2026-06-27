@@ -974,7 +974,7 @@ class Timeline:
             # Skip cleanup during migration
             return
 
-        GRACE_SECONDS = 10
+        GRACE_SECONDS = 30
 
         async with self._cleanup_lock:
             linked_frames = {
