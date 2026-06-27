@@ -89,7 +89,8 @@ class llmvisionConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             "OpenAI": self.async_step_openai,
             "OpenWebUI": self.async_step_openwebui,
             "OpenRouter": self.async_step_openrouter,
-            "Mistral": self.async_step_mistral,
+            # TODO: Enable in next minor release (1.8.0).
+            # "Mistral": self.async_step_mistral,
         }
 
         step_method = provider_steps.get(provider)
@@ -128,7 +129,8 @@ class llmvisionConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 "OpenAI",
                                 "OpenWebUI",
                                 "OpenRouter",
-                                "Mistral",
+                                # TODO: Enable in next minor release (1.8.0).
+                                # "Mistral",
                                 "Custom OpenAI",
                             ],
                             "mode": "dropdown",
