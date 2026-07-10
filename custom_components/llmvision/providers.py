@@ -922,8 +922,6 @@ class AzureOpenAI(Provider):
 
         # Add structured output format if requested
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -970,8 +968,6 @@ class AzureOpenAI(Provider):
 
         # Add structured output format if requested
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1057,9 +1053,11 @@ class Anthropic(Provider):
         return max(0, budget)
 
     def _build_thinking_config(
-        self, default_parameters: dict[str, Any]
+        self, default_parameters: dict[str, Any], forces_tool_use: bool = False
     ) -> dict[str, Any]:
         """Build Anthropic thinking config and enforce API minimum when enabled."""
+        if forces_tool_use:
+            return {"type": "disabled"}
         budget_tokens = self._normalize_thinking_budget(
             default_parameters.get("thinking_budget", 0)
         )
@@ -1069,19 +1067,22 @@ class Anthropic(Provider):
 
     def _prepare_vision_data(self, call: Any) -> dict:
         default_parameters = self._get_default_parameters(call)
+        forces_tool_use = bool(call.response_format == "json" and call.structure)
+        thinking_config = self._build_thinking_config(
+            default_parameters, forces_tool_use=forces_tool_use
+        )
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": []}],
             "max_tokens": call.max_tokens,
-            "temperature": default_parameters.get("temperature"),
+            "thinking": thinking_config,
         }
-        thinking_config = self._build_thinking_config(default_parameters)
-        payload["thinking"] = thinking_config
+        # Omit temperature if thinking is enabled
+        if thinking_config.get("type") != "enabled":
+            payload["temperature"] = default_parameters.get("temperature")
 
         # Add structured output support using tools
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1141,6 +1142,10 @@ class Anthropic(Provider):
     def _prepare_text_data(self, call: Any) -> dict:
         default_parameters = self._get_default_parameters(call)
         title_prompt = self._get_title_prompt()
+        forces_tool_use = bool(call.response_format == "json" and call.structure)
+        thinking_config = self._build_thinking_config(
+            default_parameters, forces_tool_use=forces_tool_use
+        )
         payload = {
             "model": self.model,
             "messages": [
@@ -1148,15 +1153,14 @@ class Anthropic(Provider):
                 {"role": "user", "content": [{"type": "text", "text": call.message}]},
             ],
             "max_tokens": call.max_tokens,
-            "temperature": default_parameters.get("temperature"),
+            "thinking": thinking_config,
         }
-        thinking_config = self._build_thinking_config(default_parameters)
-        payload["thinking"] = thinking_config
+        # Omit temperature if thinking is enabled
+        if thinking_config.get("type") != "enabled":
+            payload["temperature"] = default_parameters.get("temperature")
 
         # Add structured output support using tools
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1264,8 +1268,6 @@ class Google(Provider):
 
         # Add structured output support
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1330,8 +1332,6 @@ class Google(Provider):
 
         # Add structured output support
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1430,8 +1430,6 @@ class Groq(Provider):
 
         # Add structured output format if requested
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1468,8 +1466,6 @@ class Groq(Provider):
 
         # Add structured output format if requested
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1588,8 +1584,6 @@ class LocalAI(Provider):
 
         # Add structured output support (OpenAI-compatible)
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1626,8 +1620,6 @@ class LocalAI(Provider):
 
         # Add structured output support (OpenAI-compatible)
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1739,8 +1731,6 @@ class Ollama(Provider):
 
         # Add structured output support
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -1784,8 +1774,6 @@ class Ollama(Provider):
 
         # Add structured output support
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -2014,8 +2002,6 @@ class AWSBedrock(Provider):
 
         # Add structured output support using tool definitions
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
@@ -2058,8 +2044,6 @@ class AWSBedrock(Provider):
 
         # Add structured output support using tool definitions
         if call.response_format == "json" and call.structure:
-            import json
-
             try:
                 schema = (
                     json.loads(call.structure)
