@@ -813,9 +813,7 @@ class Mistral(OpenAI):
     unknown fields, so rename max_completion_tokens to max_tokens."""
 
     def __init__(self, hass: HomeAssistant, api_key: str, model: str):
-        super().__init__(
-            hass, api_key, model, endpoint={"base_url": ENDPOINT_MISTRAL}
-        )
+        super().__init__(hass, api_key, model, endpoint={"base_url": ENDPOINT_MISTRAL})
 
     @staticmethod
     def _rename_token_field(payload: dict) -> dict:
@@ -1048,24 +1046,91 @@ class Anthropic(Provider):
                 return content.get("text", "")
         return ""
 
-    def _normalize_thinking_budget(self, value: Any) -> int:
-        """Normalize thinking budget to a non-negative integer."""
-        try:
-            budget = int(float(value))
-        except (TypeError, ValueError):
-            return 0
-        return max(0, budget)
+    def _apply_anthropic_parameters(self, payload: dict, call: Any) -> dict:
+        parameters = self._get_default_parameters(call)
+        raw_budget = parameters.get("thinking_budget", 0)
 
-    def _build_thinking_config(
-        self, default_parameters: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Build Anthropic thinking config and enforce API minimum when enabled."""
-        budget_tokens = self._normalize_thinking_budget(
-            default_parameters.get("thinking_budget", 0)
+        try:
+            numeric_budget = float(raw_budget)
+        except (TypeError, ValueError):
+            raise ServiceValidationError("Anthropic thinking budget must be an integer")
+
+        if not numeric_budget.is_integer() or numeric_budget < 0:
+            raise ServiceValidationError(
+                "Anthropic thinking budget must be a non-negative integer"
+            )
+
+        budget = int(numeric_budget)
+        model = self.model.lower()
+        version_match = re.search(
+            r"claude-(?:opus|sonnet|haiku)-(\d+)(?:-(\d+))?",
+            model,
         )
-        if budget_tokens >= 1024:
-            return {"type": "enabled", "budget_tokens": budget_tokens}
-        return {"type": "disabled"}
+        major = int(version_match.group(1)) if version_match else 0
+        minor = int(version_match.group(2) or 0) if version_match else 0
+        manual_thinking = (
+            "claude-3-7-sonnet" in model
+            or (major == 4 and minor <= 6)
+            or "mythos-preview" in model
+        )
+        adaptive_thinking = (
+            "fable" in model
+            or ("mythos" in model and "mythos-preview" not in model)
+            or major >= 5
+            or (major == 4 and minor >= 7)
+        )
+        tool_choice = payload.get("tool_choice") or {}
+        forced_tool = tool_choice.get("type") in {"any", "tool"}
+
+        if budget == 0:
+            if adaptive_thinking:
+                payload["thinking"] = {"type": "disabled"}
+                for parameter in ("temperature", "top_p", "top_k"):
+                    payload.pop(parameter, None)
+            elif manual_thinking:
+                payload["thinking"] = {"type": "disabled"}
+            else:
+                payload.pop("thinking", None)
+            return payload
+
+        if adaptive_thinking:
+            payload["thinking"] = {"type": "adaptive"}
+            for parameter in ("temperature", "top_p", "top_k"):
+                payload.pop(parameter, None)
+            return payload
+
+        if not manual_thinking:
+            raise ServiceValidationError(
+                f"Extended thinking is not supported by {self.model}"
+            )
+
+        if forced_tool:
+            payload["thinking"] = {"type": "disabled"}
+            return payload
+
+        if budget < 1024:
+            raise ServiceValidationError(
+                "Anthropic thinking budget must be 0 or at least 1024"
+            )
+
+        try:
+            max_tokens = int(payload["max_tokens"])
+        except (KeyError, TypeError, ValueError):
+            raise ServiceValidationError("Anthropic max_tokens must be an integer")
+
+        if budget >= max_tokens:
+            raise ServiceValidationError(
+                "Anthropic thinking budget must be less than max_tokens"
+            )
+
+        payload["thinking"] = {
+            "type": "enabled",
+            "budget_tokens": budget,
+        }
+        for parameter in ("temperature", "top_p", "top_k"):
+            payload.pop(parameter, None)
+
+        return payload
 
     def _prepare_vision_data(self, call: Any) -> dict:
         default_parameters = self._get_default_parameters(call)
@@ -1075,8 +1140,6 @@ class Anthropic(Provider):
             "max_tokens": call.max_tokens,
             "temperature": default_parameters.get("temperature"),
         }
-        thinking_config = self._build_thinking_config(default_parameters)
-        payload["thinking"] = thinking_config
 
         # Add structured output support using tools
         if call.response_format == "json" and call.structure:
@@ -1136,7 +1199,7 @@ class Anthropic(Provider):
                 payload["messages"].insert(
                     0, {"role": "user", "content": memory_content}
                 )
-        return payload
+        return self._apply_anthropic_parameters(payload, call)
 
     def _prepare_text_data(self, call: Any) -> dict:
         default_parameters = self._get_default_parameters(call)
@@ -1150,8 +1213,6 @@ class Anthropic(Provider):
             "max_tokens": call.max_tokens,
             "temperature": default_parameters.get("temperature"),
         }
-        thinking_config = self._build_thinking_config(default_parameters)
-        payload["thinking"] = thinking_config
 
         # Add structured output support using tools
         if call.response_format == "json" and call.structure:
@@ -1181,7 +1242,7 @@ class Anthropic(Provider):
                     f"Invalid JSON in structure parameter: {str(e)}"
                 )
 
-        return payload
+        return self._apply_anthropic_parameters(payload, call)
 
     async def validate(self) -> None | ServiceValidationError:
         if not self.api_key:
