@@ -220,7 +220,8 @@ class Request:
                 call.model = None
                 return await self.call(call, _is_fallback_retry=True)
             else:
-                response_text = "Couldn't generate content. Check logs for details."
+                error_message = str(e).strip() or e.__class__.__name__
+                raise ServiceValidationError(error_message) from e
         # Handle Glimpse-v1 responses
         try:
             _LOGGER.debug(
@@ -1033,18 +1034,30 @@ class Anthropic(Provider):
 
     async def _make_request(self, data: dict) -> str:
         headers = self._generate_headers()
-        response = await self._post(url=ENDPOINT_ANTHROPIC, headers=headers, data=data)
+        response = await self._post(
+            url=ENDPOINT_ANTHROPIC,
+            headers=headers,
+            data=data,
+        )
 
-        # Handle tool use response for structured output
-        if "content" in response and len(response["content"]) > 0:
-            content = response["content"][0]
-            if content.get("type") == "tool_use":
-                # Extract the structured data from tool use
-                return json.dumps(content.get("input", {}))
-            else:
-                # Regular text response
-                return content.get("text", "")
-        return ""
+        content = response.get("content")
+        if not isinstance(content, list):
+            raise ServiceValidationError("invalid_response")
+
+        # Anthropic returns two blocks if thinking is enabled, so loop over all of them
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                return json.dumps(block.get("input", {}))
+
+        text = "".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+        if not text:
+            raise ServiceValidationError("empty_response")
+
+        return text
 
     def _apply_parameters(self, payload: dict, call: Any) -> dict:
         parameters = self._get_default_parameters(call)

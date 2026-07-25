@@ -1791,7 +1791,8 @@ async def test_anthropic_make_request_prepare_text_and_validate_paths(coverage_h
     assert await provider._make_request({"x": 1}) == '{"a": 1}'
 
     provider._post = AsyncMock(return_value={"content": []})
-    assert await provider._make_request({"x": 1}) == ""
+    with pytest.raises(ServiceValidationError, match="empty_response"):
+        await provider._make_request({"x": 1})
 
     payload = provider._prepare_text_data(
         make_coverage_call(response_format="json", structure={"type": "object"})
@@ -2023,7 +2024,6 @@ async def test_request_call_error_and_title_fallback_branches(
     req.base64_images = ["aW1n"]
     req.filenames = ["f.jpg"]
 
-    # Vision failure without fallback configured hits default error text.
     coverage_hass.config_entries.async_entries.return_value = [
         SimpleNamespace(
             data={"provider": "Settings", "fallback_provider": "no_fallback"}
@@ -2034,8 +2034,8 @@ async def test_request_call_error_and_title_fallback_branches(
         "create",
         lambda **kwargs: DummyProvider(fail_vision=True),
     )
-    result = await req.call(make_coverage_call())
-    assert result["response_text"].startswith("Couldn't generate content")
+    with pytest.raises(ServiceValidationError, match="vision failed"):
+        await req.call(make_coverage_call())
 
     # Glimpse parse failure exercises nested exception handling.
     monkeypatch.setattr(
@@ -2618,9 +2618,7 @@ def test_anthropic_new_models_use_adaptive_thinking_and_omit_sampling(
         "top_k": 10,
     }
 
-    result = provider._apply_parameters(
-        payload, make_coverage_call(max_tokens=4096)
-    )
+    result = provider._apply_parameters(payload, make_coverage_call(max_tokens=4096))
 
     assert result["thinking"] == {"type": "adaptive"}
     assert "budget_tokens" not in result["thinking"]
@@ -2641,9 +2639,7 @@ def test_anthropic_new_models_omit_sampling_even_when_thinking_is_disabled(
         "top_k": 10,
     }
 
-    result = provider._apply_parameters(
-        payload, make_coverage_call(max_tokens=4096)
-    )
+    result = provider._apply_parameters(payload, make_coverage_call(max_tokens=4096))
 
     assert result["thinking"] == {"type": "disabled"}
     assert "temperature" not in result
