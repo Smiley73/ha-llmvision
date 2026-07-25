@@ -2618,7 +2618,7 @@ def test_anthropic_new_models_use_adaptive_thinking_and_omit_sampling(
         "top_k": 10,
     }
 
-    result = provider._apply_anthropic_parameters(
+    result = provider._apply_parameters(
         payload, make_coverage_call(max_tokens=4096)
     )
 
@@ -2641,7 +2641,7 @@ def test_anthropic_new_models_omit_sampling_even_when_thinking_is_disabled(
         "top_k": 10,
     }
 
-    result = provider._apply_anthropic_parameters(
+    result = provider._apply_parameters(
         payload, make_coverage_call(max_tokens=4096)
     )
 

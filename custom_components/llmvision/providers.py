@@ -1046,7 +1046,7 @@ class Anthropic(Provider):
                 return content.get("text", "")
         return ""
 
-    def _apply_anthropic_parameters(self, payload: dict, call: Any) -> dict:
+    def _apply_parameters(self, payload: dict, call: Any) -> dict:
         parameters = self._get_default_parameters(call)
         raw_budget = parameters.get("thinking_budget", 0)
 
@@ -1199,7 +1199,7 @@ class Anthropic(Provider):
                 payload["messages"].insert(
                     0, {"role": "user", "content": memory_content}
                 )
-        return self._apply_anthropic_parameters(payload, call)
+        return self._apply_parameters(payload, call)
 
     def _prepare_text_data(self, call: Any) -> dict:
         default_parameters = self._get_default_parameters(call)
@@ -1242,7 +1242,7 @@ class Anthropic(Provider):
                     f"Invalid JSON in structure parameter: {str(e)}"
                 )
 
-        return self._apply_anthropic_parameters(payload, call)
+        return self._apply_parameters(payload, call)
 
     async def validate(self) -> None | ServiceValidationError:
         if not self.api_key:
