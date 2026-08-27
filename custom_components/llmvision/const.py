@@ -55,6 +55,9 @@ SIGNAL_TIMELINE_UPDATED = f"{DOMAIN}_timeline_updated"
 
 # SERVICE CALL CONSTANTS
 MESSAGE = "message"
+# Maximum prompt length (characters) accepted from a service call.
+# Generous safety guard only; all supported providers accept far larger inputs.
+MAX_MESSAGE_LENGTH = 100000
 STORE_IN_TIMELINE = "store_in_timeline"
 USE_MEMORY = "use_memory"
 PROVIDER = "provider"

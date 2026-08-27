@@ -40,6 +40,7 @@ from .const import (
     CONF_AWS_SECRET_ACCESS_KEY,
     CONF_AWS_REGION_NAME,
     MESSAGE,
+    MAX_MESSAGE_LENGTH,
     STORE_IN_TIMELINE,
     USE_MEMORY,
     MODEL,
@@ -450,7 +451,14 @@ class ServiceCallData:
         self.provider = str(data_call.data.get(PROVIDER))
         # If not set, the conf_default_model will be set in providers.py
         self.model = data_call.data.get(MODEL)
-        self.message = str(data_call.data.get(MESSAGE, "")[0:2000])
+        self.message = str(data_call.data.get(MESSAGE, ""))
+        if len(self.message) > MAX_MESSAGE_LENGTH:
+            _LOGGER.warning(
+                "Prompt is %d characters long and was truncated to %d characters",
+                len(self.message),
+                MAX_MESSAGE_LENGTH,
+            )
+            self.message = self.message[0:MAX_MESSAGE_LENGTH]
         self.store_in_timeline = data_call.data.get(STORE_IN_TIMELINE, False)
         self.use_memory = data_call.data.get(USE_MEMORY, False)
         self.image_paths = (
